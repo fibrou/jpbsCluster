@@ -1,0 +1,60 @@
+
+apiVersion: v1
+#NB: HostPath volume (for single node testing only; WILL NOT WORK in a multi-node cluster; consider using local volume instead)
+### storage for rstudio data
+kind: PersistentVolume
+metadata:
+  name: rstudio-data
+  labels:
+    type: local
+spec:
+  storageClassName: rstudio-manual
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/data/rstudio-data" #pre-create this
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rstudio-data
+spec:
+  storageClassName: rstudio-manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+
+---
+### storage for ethereum data
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: eth-data
+  labels:
+    type: local
+spec:
+  storageClassName: eth-manual
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/data/eth-data" #pre-create this
+
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: eth-data
+spec:
+  storageClassName: eth-manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi

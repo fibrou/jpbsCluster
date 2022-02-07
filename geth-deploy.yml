@@ -1,0 +1,123 @@
+---
+kind: Namespace
+apiVersion: v1
+metadata:
+  name: geth
+
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: geth-mainnet-full
+  namespace: geth
+spec:
+  serviceName: geth-mainnet-full
+  replicas: 1
+  selector:
+    matchLabels:
+      app: geth-mainnet-full
+  template:
+    metadata:
+      labels:
+        app: geth-mainnet-full
+    spec:
+      containers:
+        - name: geth-mainnet-full
+          image: ethereum/client-go:v1.9.23
+          imagePullPolicy: IfNotPresent
+          args:
+            [
+              "--http",
+              "--http.addr=0.0.0.0",
+              "--http.vhosts=geth-mainnet-full",
+              "--http.api=eth,net,web3,txpool",
+              "--ws",
+              "--ws.addr=0.0.0.0",
+              "--datadir=/data",
+            ]
+          env:
+          ports:
+            - containerPort: 8545
+              name: gethrpc
+            - containerPort: 30303
+              name: gethdiscovery
+          volumeMounts:
+            - name: data
+              mountPath: "/data"
+          resources:
+            limits:
+              memory: 12000Mi
+            requests:
+              memory: 10000Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        storageClassName: eth-manual #portworx
+        resources:
+          requests:
+            storage: 1000Gi
+
+---
+### eth-ethstats resources ###
+apiVersion: v1
+kind: Service
+metadata:
+  name: eth-ethstats
+  namespace: geth
+  labels:
+    app: eth-ethstats
+spec:
+  selector:
+    app: eth-ethstats
+  type: ClusterIP
+  ports:
+  - port: 80
+    targetPort: http-eth
+  
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: eth-ethstats
+  namespace: geth
+  labels:
+    app: eth-ethstats
+type: Opaque
+stringData:
+  # Not suitable for production
+  WS_SECRET: "geth1578"
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eth-ethstats
+  namespace: geth
+  labels:
+    app: eth-ethstats
+spec:
+  replicas: 1
+  revisionHistoryLimit: 1
+  selector:
+    matchLabels:
+      app: eth-ethstats
+  template:
+    metadata:
+      labels:
+        app: eth-ethstats
+    spec:
+      containers:
+      - name: ethstats
+        image: ethereumex/eth-stats-dashboard:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http-eth
+          containerPort: 3000
+        env:
+        - name: WS_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: eth-ethstats
+              key: WS_SECRET
