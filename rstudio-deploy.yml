@@ -5,8 +5,57 @@ metadata:
   name: rstudio
 
 ---
+### storage for rstudio data
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: rstudio-data
+  labels:
+    type: rstudio-data
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/rstudio-data"
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: rstudio-packages
+  labels:
+    type: rstudio-packages
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/rstudio-packages"
+
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: rstudio-settings
+  labels:
+    type: rstudio-settings
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 20Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/rstudio-settings"
+
+---
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: rstudio
   namespace: rstudio
@@ -17,56 +66,128 @@ spec:
   selector:
     matchLabels:
       app: rstudio
+  serviceName: rstudio
   template:
     metadata:
       labels:
         app: rstudio
     spec:
+      nodeSelector:
+        node/role: rstudio
       containers:
       - name: rstudio
-        image: rocker/rstudio:4
+        image: rocker/rstudio:4.1
         imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 8787
         env:
         - name: PASSWORD
           value: "rstudio"
-
+        lifecycle:
+          postStart:
+            exec:
+              command:
+                - /bin/bash
+                - -c
+                - sh /rocker_scripts/startup-script.sh
+        
         resources:
           requests:
             memory: "2Gi"
             cpu: "100m"
-            #ephemeralStorage: "100Mi"
           limits:
             memory: "4Gi"
-            #ephemeralStorage: "200Mi"
+        volumeMounts:
+        - name: startup-script
+          mountPath: /rocker_scripts
+        - name: rstudio-data
+          mountPath: /home/rstudio/data
+        - name: rstudio-packages
+          mountPath: /usr/local/lib/R/site-library
+        - name: rstudio-settings
+          mountPath: /home/rstudio/.config
 
-        livenessProbe:
-          httpGet:
-            path: /health-check
-            port: 8787
-          initialDelaySeconds: 10
-          periodSeconds: 5
-          timeoutSeconds: 2
-          failureThreshold: 10
-        startupProbe:
-          httpGet:
-            path: /health-check
-            port: 8787
-          initialDelaySeconds: 10
-          periodSeconds: 10
-          timeoutSeconds: 1
-          # -- failureThreshold * periodSeconds should be strictly > worst case startup time
-          failureThreshold: 30
-        readinessProbe:
-          httpGet:
-            path: /health-check
-            port: 8787
-          initialDelaySeconds: 3
-          periodSeconds: 3
-          timeoutSeconds: 1
-          successThreshold: 1
-          failureThreshold: 3
+      volumes:
+        - name: startup-script
+          configMap:
+            name: scripts-configmap
+        - name: rstudio-data
+          persistentVolumeClaim:
+            claimName: rstudio-data
+        - name: rstudio-packages
+          persistentVolumeClaim:
+            claimName: rstudio-packages
+        - name: rstudio-settings
+          persistentVolumeClaim:
+            claimName: rstudio-settings
+
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: rstudio-data
+  namespace: rstudio
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  selector:
+    matchLabels:
+      type: rstudio-data
+
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: rstudio-packages
+  namespace: rstudio
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  selector:
+    matchLabels:
+      type: rstudio-packages
+
+--- 
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: rstudio-settings
+  namespace: rstudio
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  selector:
+    matchLabels:
+      type: rstudio-settings
+
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: scripts-configmap
+data:
+  startup-script.sh: |
+   #!/bin/bash
+   apt-get update -y && apt-get install -y curl
+   usermod -aG sudo rstudio
+   mkdir -p /home/rstudio/data
+   mkdir -p /home/rstudio/.config/R
+   chown -R rstudio:rstudio /home/rstudio/data
+   chown -R rstudio:rstudio /home/rstudio/.config
+   Rscript -e "install.packages(c('rmarkdown', 'tidyverse', 'workflowr', 'BiocManager'));"
 
 ---
 apiVersion: v1
