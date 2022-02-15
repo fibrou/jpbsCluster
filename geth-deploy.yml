@@ -5,6 +5,23 @@ metadata:
   name: geth
 
 ---
+### storage for geth data
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: geth-data
+  labels:
+    type: geth-data
+spec:
+  storageClassName: eth-manual
+  capacity:
+    storage: 1400Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/geth-data"
+
+---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -21,9 +38,11 @@ spec:
       labels:
         app: geth-mainnet-full
     spec:
+      nodeSelector:
+        node/role: geth    
       containers:
         - name: geth-mainnet-full
-          image: ethereum/client-go:v1.9.23
+          image: ethereum/client-go:v1.10.15
           imagePullPolicy: IfNotPresent
           args:
             [
@@ -42,22 +61,33 @@ spec:
             - containerPort: 30303
               name: gethdiscovery
           volumeMounts:
-            - name: data
+            - name: geth-data
               mountPath: "/data"
           resources:
             limits:
               memory: 12000Mi
             requests:
               memory: 10000Mi
-  volumeClaimTemplates:
-    - metadata:
-        name: data
-      spec:
-        accessModes: ["ReadWriteOnce"]
-        storageClassName: eth-manual #portworx
-        resources:
-          requests:
-            storage: 1000Gi
+      volumes:
+        - name: geth-data
+          persistentVolumeClaim:
+            claimName: geth-data
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: geth-data
+  namespace: geth
+spec:
+  storageClassName: eth-manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1000Gi
+  selector:
+    matchLabels:
+      type: geth-data
 
 ---
 ### eth-ethstats resources ###
