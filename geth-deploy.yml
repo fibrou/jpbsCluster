@@ -14,6 +14,9 @@ metadata:
     type: geth-data
 spec:
   storageClassName: eth-manual
+  claimRef:
+    name: geth-data
+    namespace: geth
   capacity:
     storage: 1400Gi
   accessModes:
@@ -52,6 +55,7 @@ spec:
               "--http.api=eth,net,web3,txpool",
               "--ws",
               "--ws.addr=0.0.0.0",
+              "--syncmode=full",
               "--datadir=/data",
             ]
           env:
@@ -80,6 +84,7 @@ metadata:
   namespace: geth
 spec:
   storageClassName: eth-manual
+  volumeName: geth-data
   accessModes:
     - ReadWriteOnce
   resources:
@@ -88,6 +93,22 @@ spec:
   selector:
     matchLabels:
       type: geth-data
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: geth-service
+  namespace: geth
+  labels:
+    app: geth-mainnet-full
+spec:
+  ports:
+    - port: 8545
+      targetPort: 8545
+      name: gethrpc
+  selector:
+    app: geth-mainnet-full
 
 ---
 ### eth-ethstats resources ###

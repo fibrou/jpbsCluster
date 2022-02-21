@@ -190,6 +190,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: scripts-configmap
+  namespace: rstudio
 data:
   startup-script.sh: |
    #!/bin/bash
