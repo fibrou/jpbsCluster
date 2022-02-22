@@ -47,11 +47,12 @@ spec:
         - name: geth-mainnet-full
           image: ethereum/client-go:v1.10.15
           imagePullPolicy: IfNotPresent
+          # See more args options here: https://geth.ethereum.org/docs/interface/command-line-options
           args:
             [
               "--http",
               "--http.addr=0.0.0.0",
-              "--http.vhosts=geth-mainnet-full",
+              "--http.vhosts=localhost,geth-service.geth.svc.cluster.local,rstudio-service.rstudio.svc.cluster.local",
               "--http.api=eth,net,web3,txpool",
               "--ws",
               "--ws.addr=0.0.0.0",
